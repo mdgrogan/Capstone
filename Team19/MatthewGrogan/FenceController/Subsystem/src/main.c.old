@@ -1,0 +1,311 @@
+#include <time.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include "boundarycheck.h"
+#include "linux_threads.h"
+#include "rtk/rtklib.h"
+#include "rtkmod.h"
+
+#define MAXSTR 1024
+#define MAXRCVCMD 4096
+#define OPTSDIR "."
+#define OPTSFILE "position.conf"
+
+/* global variables */
+static int r_flag = 0;			/* run flag: 0=stop, 1=start */
+static int b_flag = 1;			/* boundary flag: -1=out, 0=on, 1=in */
+static double trkpos[3] = {0};		/* tracker position */
+static polygon_t *boundary = NULL;	/* boundary polygon */
+
+pthread_mutex_t bndMutex;
+
+int ComLoopFunc(void *argPtr);
+int TrkLoopFunc(void *argPtr);
+int BndLoopFunc(void *argPtr);
+int PosLoopFunc(void *argPtr);
+
+
+int main()
+{
+    int comLoopID=1;
+    int trkLoopID;
+    int bndLoopID=1;
+    int posLoopID;
+
+    pthread_mutex_init(&bndMutex, NULL);
+    
+    comLoopID = StartHPLoop(&ComLoopFunc, NULL, 0);
+    trkLoopID = StartHPLoop(&TrkLoopFunc, NULL, 100);
+    bndLoopID = StartHPLoop(&BndLoopFunc, NULL, 100);
+    posLoopID = StartHPLoop(&PosLoopFunc, NULL, 0);
+
+    if (comLoopID<0 || trkLoopID<0 || bndLoopID<0 || posLoopID<0) {
+        fprintf(stderr, "\nLoops didn't start properly!  Nothing to do but quit...\n");
+        fprintf(stderr, "comLoopID = %d\n", comLoopID);
+        fprintf(stderr, "trkLoopID = %d\n", trkLoopID);
+        fprintf(stderr, "bndLoopID = %d\n", bndLoopID);
+        fprintf(stderr, "posLoopID = %d\n", posLoopID);
+        return -1;
+    }
+
+    while(CheckHPLoopState(comLoopID) != HPL_STATE_DONE
+	    && CheckHPLoopState(trkLoopID) != HPL_STATE_DONE
+	    && CheckHPLoopState(bndLoopID) != HPL_STATE_DONE
+            && CheckHPLoopState(posLoopID) != HPL_STATE_DONE);
+
+    pthread_mutex_destroy(&bndMutex);
+    if (boundary != NULL) 
+	free_boundary(boundary);
+
+    return 0;
+}
+
+/*********************************************
+ * ComLoop functions
+ ********************************************/
+int new_client()
+{
+    int sock;
+    struct sockaddr_in server_addr;
+
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	fprintf(stderr, "Failed to init socket\n");
+	return -1;
+    }
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server_addr.sin_port = htons(50000);
+
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) != 0) {
+	fprintf(stderr, "Failed to connect socket\n");
+	return -1;
+    }
+    return sock;
+}
+
+int ComLoopFunc(void *argPtr)
+{
+    int sock, n;
+    double latvert[VERTMAX] = {0};
+    double lonvert[VERTMAX] = {0};
+    char inbuf[MAXSTR] = {0};
+    char outbuf[MAXSTR] = {0};
+    char filename[MAXSTR] = {0};
+    int len = 0;
+
+    sock = new_client();
+    if (sock < 0)
+	return 0;
+
+    while (recv(sock, inbuf, MAXSTR, 0) > 0) {
+	/* Do nothing */
+	if (inbuf[0] == '0') {
+	    printf("no-op\n");
+    	}
+	/* Start boundary checking */
+	pthread_mutex_lock(&bndMutex);
+	if (inbuf[0] == '1') {
+	    printf("start\n");
+	    /* Free old boundary if it exists */
+	    if (boundary != NULL)
+		free_boundary(boundary);
+	    /* Set arrays to zero */
+	    memset(filename, 0, MAXSTR);
+	    memset(latvert, 0, sizeof(latvert));
+	    memset(lonvert, 0, sizeof(lonvert));
+	    /* Some hackery for reading header bytes */
+	    len = 100*(inbuf[1]-'0') + 10*(inbuf[2]-'0') + inbuf[3]-'0';
+	    strncpy(filename, inbuf+4, len);
+	    printf("%d, %s\n", len, filename);		
+	    /* Validate boundary file */
+	    n = read_boundary(filename, latvert, lonvert);
+	    if (n < 3) {
+	        printf("bad boundary file, %d\n", n);
+		pthread_mutex_unlock(&bndMutex);
+	        continue;
+	    }
+	    /* Allocate and populate new boundary */
+	    if ((boundary = new_boundary(n, latvert, lonvert)) == NULL) {
+		printf("boundary==NULL?\n");
+		pthread_mutex_unlock(&bndMutex);
+		continue;
+	    }
+	    r_flag = 1;
+	}
+	pthread_mutex_unlock(&bndMutex);
+	/* Stop boundary checking */
+	if (inbuf[0] == '2') {
+	    printf("stop\n");
+	    r_flag = 0;
+	}
+	sprintf(outbuf, "%d %.7f %.7f", b_flag, trkpos[0], trkpos[1]);
+	send(sock, outbuf, strlen(outbuf)+1, 0);
+	memset(inbuf, 0, MAXSTR);
+	memset(outbuf, 0, MAXSTR);
+    }
+    close(sock);
+    return 0;
+}
+
+/*********************************************
+ * Tracker alert loop
+ ********************************************/
+int TrkLoopFunc(void *argPtr)
+{
+    FILE *fout = fopen("solution/OUT.txt","a");
+    FILE *fon = fopen("solution/ON.txt","a");
+    FILE *fin = fopen("solution/IN.txt","a");
+    if (r_flag) {
+	printf("%.7f %.7f\n", trkpos[0], trkpos[1]);
+	if (b_flag == -1) {
+	    printf("OUT\n");
+	    fprintf(fout, "%.7f %.7f\n", trkpos[0], trkpos[1]);
+	}
+	if (b_flag == 0) {
+	    printf("ON\n");
+	    fprintf(fon, "%.7f %.7f\n", trkpos[0], trkpos[1]);
+	}
+	if (b_flag == 1) {
+	    printf("IN\n");
+	    fprintf(fin, "%.7f %.7f\n", trkpos[0], trkpos[1]);
+	}
+    }
+    fclose(fout);
+    fclose(fon);
+    fclose(fin);
+    return 1;
+}
+
+/* This should probably just sit in posloop, no need for thread */
+int BndLoopFunc(void *argPtr)
+{
+    if (r_flag) {
+	pthread_mutex_lock(&bndMutex);
+	b_flag = boundary_check(trkpos, boundary);
+	pthread_mutex_unlock(&bndMutex);
+    }
+    return 1;
+}
+
+/*********************************************
+ * Position Loop
+ ********************************************/
+int PosLoopFunc(void *argPtr)
+{
+    datacont_t datacont;
+    obs_t obs;
+    obsd_t data[MAXOBS*2];
+    double tt;
+    unsigned int tick, ticknmea;
+    unsigned char *p, *q;
+    int fobs[3]={0}, cycle, cputime;
+    int i, j, n;
+
+    printf("PosLoop\n");
+    i = init(&datacont);
+    if (i==0) {
+	printf("RTK init failed\n");
+	return 0;
+    }
+
+    datacont.state=1; 
+    obs.data=data;
+    datacont.tick=tickget();
+    ticknmea=datacont.tick-1000;
+    
+    for (cycle=0;datacont.state;cycle++) {
+        tick=tickget();
+        for (i=0;i<3;i++) {
+            p=datacont.buff[i]+datacont.nb[i]; 
+	    q=datacont.buff[i]+datacont.buffsize;
+            
+            /* read receiver raw/rtcm data from input stream */
+            if ((n=strread(datacont.stream+i,p,q-p))<=0) {
+                continue;
+            }
+            /* write receiver raw/rtcm data to log stream */
+            strwrite(datacont.stream+i+5,p,n);
+            datacont.nb[i]+=n;
+            /* save peek buffer */
+            datacont_lock(&datacont);
+            n=n<datacont.buffsize-datacont.npb[i]?n:datacont.buffsize-datacont.npb[i];
+            memcpy(datacont.pbuf[i]+datacont.npb[i],p,n);
+            datacont.npb[i]+=n;
+            datacont_unlock(&datacont);
+        }
+        for (i=0;i<3;i++) {
+            if (datacont.format[i]==STRFMT_SP3||datacont.format[i]==STRFMT_RNXCLK) {
+                /* decode download file */
+		printf("hello?\n");
+            }
+            else {
+                /* decode receiver raw/rtcm data */
+                fobs[i]=decoderaw(&datacont,i);
+            }
+        }
+	/* fobs[0]->fobs[1] */
+        for (i=0;i<fobs[0];i++) { /* for each rover observation data */
+            obs.n=0;
+            for (j=0;j<datacont.obs[0][i].n&&obs.n<MAXOBS*2;j++) {
+                obs.data[obs.n++]=datacont.obs[0][i].data[j];
+            }
+            for (j=0;j<datacont.obs[1][0].n&&obs.n<MAXOBS*2;j++) {
+                obs.data[obs.n++]=datacont.obs[1][0].data[j];
+            }
+            /* rtk positioning */
+            datacont_lock(&datacont);
+            rtkpos(&datacont.rtk,obs.data,obs.n,&datacont.nav);
+	    /*position(&datacont.solbuf[0],datacont.rtk.rb,trkpos);
+	    datacont.nsol=0;
+            */datacont_unlock(&datacont);
+
+            if (datacont.rtk.sol.stat!=SOLQ_NONE) {
+                /* adjust current time */
+                tt=(int)(tickget()-tick)/1000.0+DTTOL;
+                timeset(gpst2utc(timeadd(datacont.rtk.sol.time,tt)));
+                
+                /* write solution */
+		position2(&datacont.rtk.sol,trkpos);
+                writesol(&datacont,i);
+            }
+            /* if cpu overload, inclement obs outage counter and break */
+            if ((int)(tickget()-tick)>=datacont.cycle) {
+                datacont.prcout+=fobs[0]-i-1;
+            }
+        }
+        /* send null solution if no solution (1hz) */
+        if (datacont.rtk.sol.stat==SOLQ_NONE&&cycle%(1000/datacont.cycle)==0) {
+            writesol(&datacont,0);
+        }
+        /* send nmea request to base/nrtk input stream */
+        if (datacont.nmeacycle>0&&(int)(tick-ticknmea)>=datacont.nmeacycle) {
+            if (datacont.stream[1].state==1) {
+                if (datacont.nmeareq==1) {
+                    strsendnmea(datacont.stream+1,datacont.nmeapos);
+                }
+                else if (datacont.nmeareq==2&&norm(datacont.rtk.sol.rr,3)>0.0) {
+                    strsendnmea(datacont.stream+1,datacont.rtk.sol.rr);
+                }
+            }
+            ticknmea=tick;
+        }
+        if ((cputime=(int)(tickget()-tick))>0) datacont.cputime=cputime;
+
+        /* sleep until next cycle */
+        sleepms(datacont.cycle-cputime);
+    }
+    freedatacont(&datacont);
+
+    return 0;
+}

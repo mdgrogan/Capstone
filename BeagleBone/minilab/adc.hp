@@ -1,0 +1,59 @@
+#ifndef ADC_HP_INCLUDED
+#define ADC_HP_INCLUDED
+
+
+#include "pru.h"
+#include "pru_macros.hp"
+
+
+#define ADC_MIO_ADDR 0x44e0d000
+#define ADC_REG_FIFO0COUNT 0xe4
+#define ADC_REG_FIFO0DATA 0x100
+
+
+.macro ADC_SETUP
+
+ MOV r2,0x44E0D040
+ MOV r3,0x00000005
+ SBBO r3,r2,0,4
+
+ MOV r2,0x44E0D054
+ MOV r3,0x00000002
+ SBBO r3,r2,0,4
+
+ MOV r2,0x44E0D064
+ MOV r3,0x00000001
+ SBBO r3,r2,0,4
+
+.endm /* ADC_SETUP */
+
+
+.macro ADC_READ
+
+ /* use r0, r1 */
+ /* result available in r0 */
+
+ /* wait until data available in fifo */
+ ADC_WAIT_DATA:
+ MOV r1, ADC_MIO_ADDR + ADC_REG_FIFO0COUNT
+ LBBO r0, r1, 0, 4
+ AND r0, r0, (1 << 7) - 1
+ QBEQ ADC_WAIT_DATA, r0, 0
+
+ /* read fifo */
+ MOV r1, ADC_MIO_ADDR + ADC_REG_FIFO0DATA
+ LBBO r0, r1, 0, 4
+ MOV r1, (1 << 12) - 1
+ AND r0, r0, r1
+ 
+ /* This ugliness is for tuning the PWM */
+ SUB r0, r0, 255
+ SUB r0, r0, 255
+ SUB r0, r0, 255
+ SUB r0, r0, 255
+ SUB r0, r0, 30
+ LSR r0, r0, 2
+.endm /* ADC_READ */
+
+
+#endif /* ADC_HP_INCLUDED */

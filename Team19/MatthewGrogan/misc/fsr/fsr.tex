@@ -1,0 +1,31 @@
+\documentclass[10pt]{article}
+
+\usepackage{graphicx} %images
+\graphicspath{ {../} } %images folder in current directory
+
+\begin{document}
+
+\begin{figure}[t]
+    \includegraphics[width=0.6\textwidth, height=6cm]{fence_controller_blockdiagram}
+    \caption{Sub-system block diagram.}
+\end{figure}
+
+\begin{figure}
+    \includegraphics[width=\textwidth]{BoundaryCheckFlowchart}
+    \caption{Boundary monitoring flowchart.}
+\end{figure}
+
+\begin{table}[h!]
+    \centering
+    \begin{tabular}{||p{7cm}|p{1cm}|p{1.5cm}|p{1cm}||}
+        \hline
+        \multicolumn{4}{|c|}{Mobile Tracker Specification Compliance Matrix}\\
+        \hline
+        Specification&min&nominal&max\\
+        \hline
+        Something about power consumption?&?&?&?\\
+        Something about communications?&?&?&?\\
+        \hline
+    \end{tabular}
+\end{table}
+\end{document}

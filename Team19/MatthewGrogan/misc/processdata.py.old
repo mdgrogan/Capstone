@@ -1,0 +1,47 @@
+import sys
+import numpy
+import math
+import time
+import pylab
+from geopy.distance import vincenty
+
+file_list = [("../misc/7-10_test/test1_point1.pos",(30.664772,-96.323129)),("../misc/7-10_test/test1_point2.pos",(30.664791,-96.323181)),("../misc/7-10_test/test1_point3.pos",(30.664743,-96.323175))]
+#file_list = [("../misc/7-10_test/test2_point1.pos",(30.664772,-96.323129)),("../misc/7-10_test/test2_point2.pos",(30.664791,-96.323181)),("../misc/7-10_test/test2_point3.pos",(30.664743,-96.323175))]
+data_list = [(pylab.loadtxt(filename), point) for filename, point in file_list] 
+
+count = 1
+sd = 0.0
+maxd = 0.0
+for data, point in data_list:
+    for line in data:
+        count += 1
+        tmp = vincenty((line[0],line[1]),point).meters
+        maxd = tmp if tmp>maxd else maxd
+        print(maxd," ",tmp)
+        sd += tmp**2
+
+    # Subtract known point 
+    data[:,0] -= point[0]
+    data[:,1] -= point[1]
+    # Convert to meters. Conversion accurate locally.
+    # Constants arrived at using vincenty approx.
+    data[:,0] /= 0.00001043
+    data[:,1] /= 0.00000902
+    pylab.scatter(data[:,0], data[:,1])
+
+sd = sd/count
+sd = math.sqrt(sd)
+rms2 = sd*2
+circle1=pylab.Circle((0,0),radius=rms2,color='green',fill=False)
+circle2=pylab.Circle((0,0),radius=maxd,color='blue',fill=False)
+pylab.gca().add_patch(circle1)
+pylab.gca().add_patch(circle2)
+
+pylab.axhline(y=0, color='k')
+pylab.axvline(x=0, color='k')
+pylab.title("Result")
+pylab.xlabel("W (m)")
+pylab.xlim([-3,3])
+pylab.ylabel("N (m)")
+pylab.ylim([-3,3])
+pylab.show()

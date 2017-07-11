@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+
+ html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Arial", "Helvetica", sans-serif;
+  color: #222;
+  font-size: 13px;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  overflow-y: hidden;
+}
+
+  #map-container {
+  width: 64.9%;
+  height: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  float: right;
+  z-index: 0;
+}
+
+#map-holder {
+  height: 100%;
+  width: 100%;
+}
+
+#drop-container {
+  display: none;
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  z-index: 1;
+  top: 0px;
+  left: 0px;
+  /* padding: 20px;*/
+  background-color: rgba(100, 100, 100, 0.5);
+}
+
+#drop-container.visible {
+  display: block;
+}
+
+#drop-silhouette {
+  color: white;
+  border: white dashed 8px;
+  height: calc(100% - 56px);
+  width: calc(100% - 56px);
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAAXNSR0IArs4c6QAAAAZiS0dEAGQAZABkkPCsTwAAAAlwSFlzAAALEwAACxMBAJqcGAAAAAd0SU1FB90LHAIvICWdsKwAAAAZdEVYdENvbW1lbnQAQ3JlYXRlZCB3aXRoIEdJTVBXgQ4XAAACdklEQVR42u3csU7icBzA8Xp3GBMSeRITH8JHMY7cRMvmVmXoE9TAcJubhjD4ApoiopgqDMWAKAgIcSAiCfxuwhwROVJbkPD9rP23ob8vpZCQKgoAAAAAAAAAAPDYyiK/eNM05bNtr6+vSjgcXiHxDMkE1WpVFvGcfpCVICAIQUAQgoAgBAFBCAKCgCAEAUEIAoIQBAQhCAgCghAEBCEICEIQEIQgIAgIQhAQhCAgCEFAEIKAICAIQUAQgoAgBAFBCDIzhmFINBo9/K6D0XVddnd3ZaneDY7jSCqVcn3SfjyeKRKJbJ2dnYllWbKUl2i5XJaXlxdJJBIy7yDHx8fy9vYm6XR6OWMM3d/fi4hIqVSSWCwmsw5ycHAgrVZLRETOz8+XO8ZQpVJ5H2Y6nRZN0/b9DqLruhSLxfd9MpkMMT6L0uv1JJlMih9BhveJwWDwvv7i4oIY4zw8PIwMtt1uSzweF6+CHB0dSbfbHVmbzWaJMcnj4+OHAd/d3cne3p64DWKapjw/P39Yd3l5SYxpVKvVsYO2LEtUVd2ZNoiu6+I4ztg1V1dXxPAiSq/Xk5OTk0k9pNVqyenp6ch94l+5XI4YbtRqNfHa9fX1t43xcwGa/Nnc3PwdDAY9OZht28rGxgZPvP6KSCSy9fT09OUrw7ZtPqa8jFKv113HuLm5IYbXVFXdcRPl9vaWGH5GaTQaU8fI5/PE8JumafvNZvO/MQqFAjFmJRqNHk6Ksqgx5vr1zzAM2d7edr3/6uqqsra2NnZbp9NR+v2+62OHQqG5zObXPIMEAgFlfX3dl2N79btl1viTA0FAEIKAIAQBAAAAAAAAsMz+Ai1bUgo6ebm8AAAAAElFTkSuQmCC');
+  background-repeat: no-repeat;
+  background-position: center;
+  margin: 20px;
+}
+
+/* Panel styles. */
+#panel {
+  float: left;
+  width: 35%;
+  height: 100%;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  outline: 1px solid rgba(0,0,0,0.2);
+  z-index: 100;
+}
+
+#panel-content {
+  padding: 8.5px;
+}
+
+#geojson-controls {
+  padding-bottom: 8px;
+}
+
+#geojson-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  resize: none;
+  background-color: #F1F1F1;
+}
+
+#floating-panel {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 5;
+  background-color: #fff;
+  padding: 5px;
+  border: 1px solid #999;
+  text-align: center;
+  font-family: 'Roboto','sans-serif';
+  line-height: 30px;
+  padding-left: 10px;
+}
+
+#floating-panel {
+  position: absolute;
+  top: 5px;
+  left: 75%;
+  margin-left: -180px;
+  width: 350px;
+  z-index: 5;
+  background-color: #fff;
+  padding: 5px;
+  border: 1px solid #999;
+}
+
+#latlng {
+  width: 225px;
+}
+
+#panel-title {
+  font-size: 20px;
+  line-height: 24px;
+  color: #DD4B39;
+}
+
+.subtitle {
+  font-size: 16px;
+  color: #222222;
+}
+
+hr {
+  color: #ebebeb;
+}
+
+#geojson-input {
+  background-color: #F1F1F1;
+}
+
+#geojson-input.invalid {
+  background-color: #FAC6C0;
+}
+</style>
+    <title>GPS-Based Virtue Fence</title>
+
+    <script>
+var map;
+var dropContainer;
+var panel;
+var geoJsonInput;
+var downloadLink;
+var geocoder;
+var infowindow;
+
+function init() {
+  // Initialize the map.
+  map = new google.maps.Map(document.getElementById('map-holder'), {
+    center: {lat: 30.609899, lng: -96.340399},
+    zoom: 17,
+    mapTypeId: google.maps.MapTypeId.SATELLITE
+  });
+  map.data.setControls(['Point', 'Polygon']);
+  map.data.setStyle({
+    editable: true,
+    draggable: true
+  });
+  geocoder = new google.maps.Geocoder;
+  infowindow = new google.maps.InfoWindow;
+
+  // Retrieve HTML element for the coordinate window
+  document.getElementById('submit').addEventListener('click', function() {
+          geocodeLatLng(geocoder, map, infowindow);
+  });
+
+  bindDataLayerListeners(map.data);
+
+  // Retrieve HTML elements.
+  dropContainer = document.getElementById('drop-container');
+  panel = document.getElementById('panel');
+  var mapContainer = document.getElementById('map-holder');
+  geoJsonInput = document.getElementById('geojson-input');
+  downloadLink = document.getElementById('download-link');
+
+  // Resize the geoJsonInput textarea.
+  resizeGeoJsonInput();
+
+  // Set up the loading events.
+  // listener on common events.
+  [mapContainer, dropContainer].forEach(function(container) {
+    google.maps.event.addDomListener(container, 'drop', handleDrop);
+    google.maps.event.addDomListener(container, 'dragover', showPanel);
+  });
+
+  // map-specific events.
+  google.maps.event.addDomListener(mapContainer, 'dragstart', showPanel);
+  google.maps.event.addDomListener(mapContainer, 'dragenter', showPanel);
+
+  // overlay specific events
+  google.maps.event.addDomListener(dropContainer, 'dragend', hidePanel);
+  google.maps.event.addDomListener(dropContainer, 'dragleave', hidePanel);
+  // set up events for changing the geoJson input.
+  google.maps.event.addDomListener(
+      geoJsonInput,
+      'input',
+      refreshDataFromGeoJson);
+  google.maps.event.addDomListener(
+      geoJsonInput,
+      'input',
+      refreshDownloadLinkFromGeoJson);
+
+  // se t up events for styling.
+  google.maps.event.addDomListener(window, 'resize', resizeGeoJsonInput);
+}
+google.maps.event.addDomListener(window, 'load', init);
+
+// reverse geocoding method
+function geocodeLatLng(geocoder, map, infowindow) {
+  var input = document.getElementById('latlng').value;
+  var latlngStr = input.split(',', 2);
+  var latlng = {lat: parseFloat(latlngStr[0]), lng: parseFloat(latlngStr[1])};
+    geocoder.geocode({'location': latlng}, function(results, status) {
+       if (status === 'OK') {
+         if (results[1]) {
+           map.setZoom(17);
+           var marker = new google.maps.Marker({
+             position: latlng,
+              map: map
+              });
+              infowindow.setContent(results[1].formatted_address);
+              infowindow.open(map, marker);
+            } else {
+              window.alert('No results found');
+            }
+          } else {
+            window.alert('Geocoder failed due to: ' + status);
+          }
+        });
+      }
+
+// Refresh different components from other components.
+function refreshGeoJsonFromData() {
+  map.data.toGeoJson(function(geoJson) {
+    geoJsonInput.value = JSON.stringify(geoJson, null, 2);
+    refreshDownloadLinkFromGeoJson();
+  });
+}
+
+// Replace the data layer with a new one based on the inputted geoJson.
+function refreshDataFromGeoJson() {
+  var newData = new google.maps.Data({
+    map: map,
+    style: map.data.getStyle(),
+    controls: ['Point', 'Polygon']
+  });
+  try {
+    var userObject = JSON.parse(geoJsonInput.value);
+    var newFeatures = newData.addGeoJson(userObject);
+  } catch (error) {
+    newData.setMap(null);
+    if (geoJsonInput.value !== "") {
+      setGeoJsonValidity(false);
+    } else {
+      setGeoJsonValidity(true);
+    }
+    return;
+  }
+  // No error means GeoJSON was valid
+  map.data.setMap(null);
+  map.data = newData;
+  bindDataLayerListeners(newData);
+  setGeoJsonValidity(true);
+}
+
+// Refresh download link.
+function refreshDownloadLinkFromGeoJson() {
+  downloadLink.href = "data:;base64," + btoa(geoJsonInput.value);
+}
+
+// more listeners, refresh map uopn new parameters from json
+function bindDataLayerListeners(dataLayer) {
+  dataLayer.addListener('addfeature', refreshGeoJsonFromData);
+  dataLayer.addListener('removefeature', refreshGeoJsonFromData);
+  dataLayer.addListener('setgeometry', refreshGeoJsonFromData);
+}
+
+// validity of geoJson.
+function setGeoJsonValidity(newVal) {
+  if (!newVal) {
+    geoJsonInput.className = 'invalid';
+  } else {
+    geoJsonInput.className = '';
+  }
+}
+
+// Control the drag and drop panel, google's method
+function showPanel(e) {
+  e.stopPropagation();
+  e.preventDefault();
+  dropContainer.className = 'visible';
+  return false;
+}
+
+function hidePanel() {
+  dropContainer.className = '';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  hidePanel();
+
+  var files = e.dataTransfer.files;
+  if (files.length) {
+    // process file being dropped, coords, shape, blah blah blah
+    for (var i = 0, file; file = files[i]; i++) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        map.data.addGeoJson(JSON.parse(e.target.result));
+      };
+      reader.onerror = function(e) {
+        console.error('reading failed');
+      };
+      reader.readAsText(file);
+    }
+  } else {
+    // so it doesn't break when matt drags txt files
+    var plainText = e.dataTransfer.getData('text/plain');
+    if (plainText) {
+      map.data.addGeoJson(JSON.parse(plainText));
+    }
+  };
+  // prevent drag event from bubbling further
+  return false;
+}
+
+// Styling
+function resizeGeoJsonInput() {
+  var geoJsonInputRect = geoJsonInput.getBoundingClientRect();
+  var panelRect = panel.getBoundingClientRect();
+  geoJsonInput.style.height = panelRect.bottom - geoJsonInputRect.top - 8 + "px";
+}
+      </script>
+      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCSMuog27TyyDUfbxwDDH0SkvL1xGIbkHc&libraries=drawing&callback=init"
+         async defer></script>
+  </head>
+
+  <body>
+    <div id="panel">
+      <div id="panel-content">
+        <div id="panel-title">GPS-Based Virtue Fence</div>
+        <hr/>
+        <div id="geojson-controls">
+          <INPUT TYPE="button" onClick="history.go(0)" VALUE="New Map">
+          <a id="download-link" href="data:;base64," download="boundary.json"><button>Save Map</button></a>
+          <a id="location" href="data:;base64,"><button> Location</button></a>
+          <input type="button" value="Off" onclick="self.close()">
+          <input type="file" id="file" name="fil">
+        </div>
+        <textarea id="geojson-input"
+            placeholder="Your Coordinates."></textarea>
+      </div>
+    </div>
+
+    <div id="floating-panel">
+      <input id="latlng" type="text" value="Enter your Coordinates">
+       <input id="submit" type="button" value="Find Location">
+    </div>
+
+    <div id="map-container">
+      <div id="map-holder"></div>
+
+      <div id="drop-container">
+        <div id="drop-silhouette"></div>
+      </div>
+    </div>
+  </body>
+</html>
